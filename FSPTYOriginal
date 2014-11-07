@@ -1,0 +1,2334 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--Written by Jordan Booker at Fugro Survey Pty Ltd-->
+  <head>
+    <title>Fugro Survey Pty Ltd Jobs Database</title>
+    <link rel="stylesheet" href="../OpenLayers/theme/default/style.css" type="text/css" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+	<script src="ext-3.0.0/adapter/ext/ext-base.js" type="text/javascript"></script>
+	<script src="ext-3.0.0/ext-all.js"  type="text/javascript"></script>
+	<link rel="stylesheet" type="text/css" href="ext-3.0.0/resources/css/ext-all.css"></link>
+	<script src="OpenLayers/OpenLayers.js" type="text/javascript"></script>
+	<script src="GeoExt/script/GeoExt.js" type="text/javascript"></script>
+	<script src="proj4js/lib/proj4js-combined.js" type="text/javascript"></script>
+	<link rel="stylesheet" type="text/css" href="GeoExt/resources/geoext-all-debug.css"></link>
+
+        <style type="text/css">
+            body
+            {
+		        margin: 0;
+        	}
+
+	        #map {
+	            width: 100%;
+	            height:100%;
+	        }
+
+    </style>
+
+    <script type="text/javascript" language="javascript">
+
+        var map, layer, options, measureControls, measurePopup, coordSys;
+
+        var wmsUrl = 'http://enc.fugro/WMS';
+
+	//preload source projection scripts
+        var src = new OpenLayers.Projection('EPSG:28348');
+        var src = new OpenLayers.Projection('EPSG:28349');
+        var src = new OpenLayers.Projection('EPSG:28350');
+        var src = new OpenLayers.Projection('EPSG:28351');
+        var src = new OpenLayers.Projection('EPSG:28352');
+        var src = new OpenLayers.Projection('EPSG:28353');
+        var src = new OpenLayers.Projection('EPSG:28354');
+        var src = new OpenLayers.Projection('EPSG:28355');
+        var src = new OpenLayers.Projection('EPSG:28356');
+        var src = new OpenLayers.Projection('EPSG:28357');
+        var src = new OpenLayers.Projection('EPSG:4939');
+        var src = new OpenLayers.Projection('EPSG:4326');
+
+	var result;
+	var infoToggle = 1;
+
+        var openTableHtml = '<table class="popupTable">';
+        var openTableRowHtml = '<tr>';
+        var openTableCellHtml = '<td>';
+        var closeTableCellHtml = '</td>';
+        var closeTableRowHtml = '</tr>';
+        var closeTableHtml = '</table>';
+
+        function init(){
+
+            toggleMeasureDialog("hide");
+
+		var extent = new OpenLayers.Bounds(100, -35, 160, -20);
+		var r_extent = new OpenLayers.Bounds(-180, -90, 180, 90);
+
+                var options = {
+                    projection: "EPSG:4326",
+                    units: 'degrees',
+                    maxScale: 100,
+                    maxExtent: new OpenLayers.Bounds(-180, -90, 180, 90),
+                    handlerOptions: {
+                    style: "default", // this forces default render intent
+                    persist: true
+                    //fractionalZoom: true
+                    }
+                };
+
+            //Create a new openlayers map
+            map = new OpenLayers.Map('map', {
+			    eventListeners: {
+			        "moveend": updateLatLonEvent
+			     }
+            }, options);
+
+			var mapPanel = new GeoExt.MapPanel({
+				border: true,
+				region: "center",
+				map: map,
+				layers: map.layers
+			});
+
+
+            var control;
+            for (var key in measureControls)
+            {
+                control = measureControls[key];
+                control.events.on({
+                    "measure": handleMeasurements,
+                    "measurepartial": handleMeasurements
+                });
+                map.addControl(control);
+            }
+
+
+			//Fugro ENC From WMS Server
+            var ENC = new OpenLayers.Layer.WMS("ENC WMS",
+                    wmsUrl,
+                    { layers: 'Base_Layer' },
+                    { singleTile: true, isBaseLayer: false, transitionEffect: 'resize', ratio: 1 });
+
+			//Add Layers Into Map From GeoServer
+            var WELLS = new OpenLayers.Layer.WMS(
+                "GSA Wells",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'WGS84_GeoSciAus_Wells_Offshore',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true},
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true, ratio: 1});
+
+            var Prev_Jobs = new OpenLayers.Layer.WMS(
+                "Previous Jobs",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_FSPTY_Jobs_Reports',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true},
+                { 'opacity': 0.75, 'isBaseLayer': false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var RIG_MOVES = new OpenLayers.Layer.WMS(
+                "Rig Moves",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_Rig_Moves',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true},
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var PERMIT = new OpenLayers.Layer.WMS(
+                "Offshore Permits",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_License_Blocks',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+			
+////////////////////////////////////////////Cyclone Data////////////////////// GW: new layers added 2013
+
+			var CYCLONE_DATA = new OpenLayers.Layer.WMS(
+	             "Cyclone History",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1900 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1900's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1900',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1910 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1910's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1910',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1920 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1920's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1920',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1930 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1930's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1930',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1940 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1940's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1940',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1950 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1950's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1950',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1960 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1960's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1960',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				 
+			var CYCLONE_1970 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1970's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1970',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1980 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1980's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1980',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_1990 = new OpenLayers.Layer.WMS(
+	             "Cyclones 1990's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_1990',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				 
+			var CYCLONE_2000 = new OpenLayers.Layer.WMS(
+	             "Cyclones 2000's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_2000',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			var CYCLONE_2010 = new OpenLayers.Layer.WMS(
+	             "Cyclones 2010's",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Cyclone_History_2010',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				 
+////////////////////////////////////////////Marine Reserves////////////////////// GW: new layer added 2012
+
+var MARINE_NETWORK = new OpenLayers.Layer.WMS(
+	             "Proposed Marine Reserves Network 2012",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Proposed_Final_Reserves_Network_2012',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+
+var MARINE_WA = new OpenLayers.Layer.WMS(
+	             "WA Marine Conservation Reserves",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_WA_Marine_Conservation_Reserves',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+			 
+////////////////////////////////////////////Airphotos Index////////////////////// GW: new layer added 2012
+
+var AIR_PHOTOS = new OpenLayers.Layer.WMS(
+	             "Aerial Photography",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_AirPhoto_Index',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				
+////////////////////////////////////////////Satellite Index////////////////////// GW: new layer added 2012
+
+var SAT_INDEX = new OpenLayers.Layer.WMS(
+	             "Satellite Imagery",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Satellite_Index',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				
+////////////////////////////////////////////LADS Index////////////////////// GW: new layer added 2012
+
+var LADS_INDEX = new OpenLayers.Layer.WMS(
+	             "LADS Data",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_LADS_Index',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+				
+//////////////////////////////////////////////FIELDS  ASBUILT/////////////////////////////////////////////////
+
+            var APACHE = new OpenLayers.Layer.WMS(
+                "Apache NWS",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_APACHE_NWS_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var BARROW = new OpenLayers.Layer.WMS(
+                "Barrow Island",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_BARROW_ISLAND_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var BASKER_MANTA = new OpenLayers.Layer.WMS(
+                "Basker Manta",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_BASKER_MANTA_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var BAYU_UNDAN = new OpenLayers.Layer.WMS(
+                "Bayu Undan",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_BAYU_UNDAN_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var BLACKTIP = new OpenLayers.Layer.WMS(
+                "Blacktip",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_BLACKTIP_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var BUFFALO = new OpenLayers.Layer.WMS(
+                "Buffalo",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_BUFFALO_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+
+            var CASINO = new OpenLayers.Layer.WMS(
+                "Casino",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_CASINO_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var CHALLIS = new OpenLayers.Layer.WMS(
+                "Challis",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_CHALLIS_ASBUILT_20080825',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var CHEVRON_NWS = new OpenLayers.Layer.WMS(
+                "Chevron NWS",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_CHEVRON_NWS_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+            var ELANG = new OpenLayers.Layer.WMS(
+                "Elang",
+                "http://osdgis.fugro:8080/geoserver/wms?",
+                {
+                   layers: 'topp:WGS84_ELANG_ASBUILT',
+                   styles: '',
+                   format: 'image/png',
+                   tiled: 'false',
+                   transparent: true },
+                { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var ESSO_BS = new OpenLayers.Layer.WMS(
+	            "Esso Bass Straight",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_ESSO_OMV_BASS_STRAIGHT_ASBUILT',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var ENFIELD = new OpenLayers.Layer.WMS(
+	            "Enfield",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_Enfield_AsBuilt',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var GRIFFIN = new OpenLayers.Layer.WMS(
+	            "Griffin",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_GRIFFIN_ASBUILT_20090401',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var JABIRU = new OpenLayers.Layer.WMS(
+	            "Jabiru",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_JABIRU_ASBUILT_20090401',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var MINERVA = new OpenLayers.Layer.WMS(
+	            "Minerva",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_MINERVA_ASBUILT',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var MUTINEER = new OpenLayers.Layer.WMS(
+	            "Mutineer Exeter",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_MUTINEER_EXETER_20060823',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var OTWAY = new OpenLayers.Layer.WMS(
+	            "Otway",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_Otway_ASBUILT',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var PAT_BALEEN = new OpenLayers.Layer.WMS(
+	            "Patricia Baleen",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_PATRICIA_BALEEN_ASBUILT',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	        var PYR_MACEDON = new OpenLayers.Layer.WMS(
+	            "Pyrenes / Macedon",
+	            "http://osdgis.fugro:8080/geoserver/wms?",
+	            {
+	               layers: 'topp:WGS84_Pyrennes_Macedon',
+	               styles: '',
+	               format: 'image/png',
+	               tiled: 'false',
+	               transparent: true },
+	            { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var STYBARROW = new OpenLayers.Layer.WMS(
+	             "Stybarrow",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_STYBARROW_ASBUILT',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var POHOKURA = new OpenLayers.Layer.WMS(
+	             "Pohokura",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_TM_POHOKURA_ASBUILT',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var VINCENT = new OpenLayers.Layer.WMS(
+	             "Vincent",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Vincent_ASBUILT_20080804',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var WANDOO = new OpenLayers.Layer.WMS(
+	             "Wandoo",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_WANDOO_ASBUILT_20071025',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var WOOLY_SCALY = new OpenLayers.Layer.WMS(
+	             "Wandoo",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Woolybutt_Scalybutt_20071004',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var WEL_NWS = new OpenLayers.Layer.WMS(
+	             "WEL NWS",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_WEL_NWS_ASBUILT',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var W_NAT_SEA = new OpenLayers.Layer.WMS(
+	             "West Natuna Sea",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_WEST_NATUNA_SEA_FIELD_ASBUILT',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////FIELDS PROPOSED////////////////////////////////////////////////////
+
+	         var GORGON_PROP = new OpenLayers.Layer.WMS(
+	             "Greater Gorgon - Prop",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_GREATER_GORGON_PROPOSED',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var KUPE_PROP = new OpenLayers.Layer.WMS(
+	             "Kupe - Prop",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_KUPE_PROPOSED',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var PUFFIN_PROP = new OpenLayers.Layer.WMS(
+	             "Puffin - Prop",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_PUFFIN_PROPOSED',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var WHEATSTONE_PROP = new OpenLayers.Layer.WMS(
+	             "Wheatstone - Prop",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_WHEATSTONE_PROPOSED',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+
+///////////////////AUSTRALIAN MARITIME BOUNDARIES////////////////////////////////////////////////////
+
+	         var NAXA = new OpenLayers.Layer.WMS(
+	             "NAXA Military Boundary",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_NAXA_Military_Boundary',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var JPDA = new OpenLayers.Layer.WMS(
+	             "Joint Petroleum Development Area",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_JPDA',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var COASTAL_WATERS = new OpenLayers.Layer.WMS(
+	             "Coastal Waters",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Coastal_Waters',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var TERRITORIAL_SEA = new OpenLayers.Layer.WMS(
+	             "Territorial Sea",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Territorial_Sea',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var CONTIGUOUS_ZONE = new OpenLayers.Layer.WMS(
+	             "Territorial Sea",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Contiguous_Zone',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var CONTINENTAL_SHELF = new OpenLayers.Layer.WMS(
+	             "Coastal Waters",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Continental_Shelf',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+
+	         var EEZ = new OpenLayers.Layer.WMS(
+	             "Territorial Sea",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Exclusive_Economic_Zone',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////Geological Data////////////////////////////////////////////////////
+
+	         var GEO_BASINS = new OpenLayers.Layer.WMS(
+	             "Basins",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Geo_Basins',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var GEO_ONSHORE_BASINS = new OpenLayers.Layer.WMS(
+	             "Basins",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Geo_Onshore_Basins',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var OIL_FIELDS = new OpenLayers.Layer.WMS(
+	             "Oil Fields",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Oil_Fields',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+	         var GAS_FIELDS = new OpenLayers.Layer.WMS(
+	             "Gas Fields",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Gas_Fields',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////Subsea Cables////////////////////////////////////////////////////
+
+	         var SUBSEA_CABLES = new OpenLayers.Layer.WMS(
+	             "Subsea Cables",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Subsea_Cables',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true, ratio: 1 });
+
+	         var AUS_SUBSEA_CABLES = new OpenLayers.Layer.WMS(
+	             "Aust Subsea Cables",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Subsea_Cables_Australia',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true, ratio: 1 });
+
+	         var CONFIDENTIAL_SUBSEA_CABLES = new OpenLayers.Layer.WMS(
+	             "Confidential Subsea Cables",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Subsea_Cables_Confidential',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true, ratio: 1 });
+
+///////////////////Geographical Data////////////////////////////////////////////////////
+
+	         var MAJOR_TOWNS = new OpenLayers.Layer.WMS(
+	             "Major Towns",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Major_Towns',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////Cultural Data////////////////////////////////////////////////////
+
+	         var NATIVE_TITLE = new OpenLayers.Layer.WMS(
+	             "Native Title",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Native_Title',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////Shipwrecks////////////////////////////////////////////////////
+
+	         var WRECKS_WA = new OpenLayers.Layer.WMS(
+	             "Shipwrecks WA",
+	             "http://osdgis.fugro:8080/geoserver/wms?",
+	             {
+	                layers: 'topp:WGS84_Shipwrecks_WA',
+	                styles: '',
+	                format: 'image/png',
+	                tiled: 'false',
+	                transparent: true },
+	             { 'opacity': 0.75, 'isBaseLayer': false, visibility:false, 'wrapDateLine': true, 'reproject': true, singleTile: true,ratio: 1 });
+
+///////////////////Images and Satellite Data////////////////////////////////////////////////////
+
+			//World map image for use as a background turned off in layer switcher
+            var world_map = new OpenLayers.Layer.Image(
+                'World',
+                'Images/Worldcity.jpg',
+                new OpenLayers.Bounds(-180, -90, 180, 90),
+                new OpenLayers.Size(1500, 750),
+                {displayInLayerSwitcher: false, isBaseLayer: true, transitionEffect: 'resize', ratio: 1 }
+				);
+
+			//NASA JPL Global Mosaic WMS
+            var jpl_wms = new OpenLayers.Layer.WMS
+			(
+                "NASA Global Mosaic - Internet",
+                "http://wms.jpl.nasa.gov/wms.cgi?",
+                {layers: "global_mosaic"},
+                {singleTile: true, isBaseLayer: false, visibility:false, transitionEffect: 'resize', ratio: 1 }
+			);
+
+				
+            var NATURALEARTH = new OpenLayers.Layer.WMS
+			(
+				"Natural Earth Imagery (2010)", "http://osdgis.fugro:8080/geoserver/wms",
+				{
+					layers: 'topp:naturalearth',
+					styles: '',
+                    srs: 'EPSG:4326',
+					format: 'image/png8',
+	                transparent: false
+				},
+				{'isBaseLayer': false, visibility:false, singleTile: true, ratio: 1, transitionEffect: 'resize'}
+			);
+  
+			var WETNDRY = new OpenLayers.Layer.WMS
+			(
+				"WetnDry Model (2006)",
+				"http://osdgis.fugro:8080/geoserver/wms",
+				{
+				    height: '375',
+                    width: '800', 
+					layers: 'topp:world_1mile',
+					styles: '',
+                    srs: 'EPSG:4326',
+					format: 'image/png8',
+	                transparent: true
+				},
+//				{singleTile: true, ratio: 1}
+				{'opacity': 0.4, 'isBaseLayer': false, visibility:false, singleTile: true, ratio: 1, transitionEffect: 'resize'}
+			);
+
+//	pkpkpkpk
+
+       // setup single tiled layer
+//                untiled = new OpenLayers.Layer.WMS(
+ //                   "topp:world_1mile - Untiled", "http://osdgis.fugro:8080/geoserver/wms",
+ //                   {
+ //                       height: '375',
+ //                       width: '800',
+ //                       layers: 'topp:world_1mile',
+ //                       styles: '',
+ //                       srs: 'EPSG:4326',
+  //                      format: format
+   //                 },
+  //                  {singleTile: true, ratio: 1} 
+   //             );
+        
+               
+
+//pkpkpkpk	
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            var CUSTOM_MARKERS = new OpenLayers.Layer.Markers( "Custom Markers");
+
+            var layer_style = OpenLayers.Util.extend({}, OpenLayers.Feature.Vector.style['default']);
+            layer_style.fillOpacity = 0.2;
+            layer_style.graphicOpacity = 1;
+
+
+            var style_green = OpenLayers.Util.extend({}, layer_style);
+            style_green.strokeColor = "green";
+            style_green.fillColor = "green";
+            style_green.graphicName = "star";
+            style_green.pointRadius = 10;
+            style_green.strokeWidth = 3;
+            style_green.strokeLinecap = "butt";
+
+            var style_red = OpenLayers.Util.extend({}, layer_style);
+            style_red.strokeColor = "red";
+            style_red.fillColor = "black";
+            style_red.fillOpacity = 0.5;
+            style_red.graphicName = "circle";
+            style_red.pointRadius = 3;
+            style_red.strokeWidth = 2;
+            style_red.strokeLinecap = "butt";
+
+            var CUSTOM_VECTORS = new OpenLayers.Layer.Vector("vectors", {style: style_green});
+            var INFO_VECTORS = new OpenLayers.Layer.Vector("info_vectors", {style: style_red});
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+			//Layer to add all dynamic markers to
+			var markers = new OpenLayers.Layer.Markers( "Markers" );
+
+			//Add all layers to be included in the Map
+//            map.addLayers([world_map, jpl_wms, ENC, CONTINENTAL_SHELF, EEZ, CONTIGUOUS_ZONE, TERRITORIAL_SEA, COASTAL_WATERS, GEO_ONSHORE_BASINS, GEO_BASINS, NATIVE_TITLE, GAS_FIELDS, OIL_FIELDS, NAXA, JPDA, Conc, CONFIDENTIAL_SUBSEA_CABLES, SUBSEA_CABLES, AUS_SUBSEA_CABLES, WHEATSTONE_PROP, PUFFIN_PROP, KUPE_PROP, GORGON_PROP, WOOLY_SCALY, W_NAT_SEA, WEL_NWS, WANDOO, VINCENT,  STYBARROW, POHOKURA, PYR_MACEDON, PAT_BALEEN, OTWAY, MUTINEER, MINERVA, JABIRU, GRIFFIN, ENFIELD, ESSO_BS, ELANG, CHEVRON_NWS, CHALLIS, CASINO, BUFFALO, BLACKTIP, BAYU_UNDAN, BASKER_MANTA, BARROW, APACHE, WRECKS_WA, WELLS, Prev_Jobs, RIG_MOVES, MAJOR_TOWNS, markers, CUSTOM_VECTORS, INFO_VECTORS, CUSTOM_MARKERS]);
+            map.addLayers([world_map, NATURALEARTH, jpl_wms, ENC, CONTINENTAL_SHELF, EEZ, CONTIGUOUS_ZONE, TERRITORIAL_SEA, COASTAL_WATERS, GEO_ONSHORE_BASINS, GEO_BASINS, CYCLONE_DATA, CYCLONE_2010, CYCLONE_2000, CYCLONE_1990, CYCLONE_1980, CYCLONE_1970, CYCLONE_1960, CYCLONE_1950, CYCLONE_1940, CYCLONE_1930, CYCLONE_1920, CYCLONE_1910, CYCLONE_1900, MARINE_NETWORK, MARINE_WA, NATIVE_TITLE, GAS_FIELDS, OIL_FIELDS, AIR_PHOTOS, SAT_INDEX, LADS_INDEX, NAXA, JPDA, PERMIT, CONFIDENTIAL_SUBSEA_CABLES, SUBSEA_CABLES, AUS_SUBSEA_CABLES, WHEATSTONE_PROP, PUFFIN_PROP, KUPE_PROP, GORGON_PROP, WOOLY_SCALY, W_NAT_SEA, WEL_NWS, WANDOO, VINCENT,  STYBARROW, POHOKURA, PYR_MACEDON, PAT_BALEEN, OTWAY, MUTINEER, MINERVA, JABIRU, GRIFFIN, ENFIELD, ESSO_BS, ELANG, CHEVRON_NWS, CHALLIS, CASINO, BUFFALO, BLACKTIP, BAYU_UNDAN, BASKER_MANTA, BARROW, APACHE, WRECKS_WA, WELLS, Prev_Jobs, RIG_MOVES, MAJOR_TOWNS, markers, CUSTOM_VECTORS, INFO_VECTORS, CUSTOM_MARKERS, WETNDRY]);
+
+					//Set up control to send a query to GeoServer and put the results in a popup box with the DMS location.
+           			var info = new OpenLayers.Control.WMSGetFeatureInfo({
+			            url:'http://osdgis.fugro:8080/geoserver/wms?',
+			            title:'Location Results',
+			            //layers:[WRECKS_WA, NATIVE_TITLE, GEO_ONSHORE_BASINS, GEO_BASINS, GAS_FIELDS, OIL_FIELDS, CONTINENTAL_SHELF, EEZ,CONTIGUOUS_ZONE, TERRITORIAL_SEA, COASTAL_WATERS, NAXA, JPDA, Conc, CONFIDENTIAL_SUBSEA_CABLES, SUBSEA_CABLES, AUS_SUBSEA_CABLES, WHEATSTONE_PROP, PUFFIN_PROP, KUPE_PROP, GORGON_PROP, W_NAT_SEA, WEL_NWS, WOOLY_SCALY, WANDOO, VINCENT, STYBARROW, POHOKURA, PYR_MACEDON, PAT_BALEEN, OTWAY, MUTINEER, MINERVA, JABIRU, GRIFFIN, ENFIELD, ESSO_BS, ELANG, CHEVRON_NWS, CHALLIS, CASINO, BUFFALO, BLACKTIP, BAYU_UNDAN, BASKER_MANTA, BARROW, APACHE, WELLS, MAJOR_TOWNS, Prev_Jobs, RIG_MOVES],
+			            layers:[CYCLONE_DATA, CYCLONE_2010, CYCLONE_2000, CYCLONE_1990, CYCLONE_1980, CYCLONE_1970, CYCLONE_1960, CYCLONE_1950, CYCLONE_1940, CYCLONE_1930, CYCLONE_1920, CYCLONE_1910, CYCLONE_1900, MARINE_WA, MARINE_NETWORK, AIR_PHOTOS, SAT_INDEX, LADS_INDEX, WRECKS_WA, NATIVE_TITLE, GEO_ONSHORE_BASINS, GEO_BASINS, GAS_FIELDS, OIL_FIELDS, CONTINENTAL_SHELF, EEZ,CONTIGUOUS_ZONE, TERRITORIAL_SEA, COASTAL_WATERS, NAXA, JPDA, PERMIT, CONFIDENTIAL_SUBSEA_CABLES, SUBSEA_CABLES, AUS_SUBSEA_CABLES, WHEATSTONE_PROP, PUFFIN_PROP, KUPE_PROP, GORGON_PROP, W_NAT_SEA, WEL_NWS, WOOLY_SCALY, WANDOO, VINCENT,  STYBARROW, POHOKURA, PYR_MACEDON, PAT_BALEEN, OTWAY, MUTINEER, MINERVA, JABIRU, GRIFFIN, ENFIELD, ESSO_BS, ELANG, CHEVRON_NWS, CHALLIS, CASINO, BUFFALO, BLACKTIP, BAYU_UNDAN, BASKER_MANTA, BARROW, APACHE, WELLS, MAJOR_TOWNS, Prev_Jobs, RIG_MOVES, WETNDRY, NATURALEARTH],
+			            queryVisible:true,
+			            maxFeatures:100,
+			            INFO_FORMAT:'application/vnd.ogc.gml',
+			            ouputFormat:'text/html',
+			            eventListeners: {
+
+			                getfeatureinfo: function(event) {
+
+									//Openlayers LatLon object generated from event
+									var loc = map.getLonLatFromPixel(event.xy);
+
+										//Change DD to DMS for inclusion in popup location
+
+										if (loc.lon > 0){
+
+										var DMSLongDeg = Math.floor(loc.lon);
+										var DMSLongMin = ((loc.lon)-DMSLongDeg)*60;
+										var DMSLongSec = (DMSLongMin - (Math.floor(DMSLongMin)))*60;
+
+											var lonDMSStr = DMSLongDeg + "°" + (Math.floor(DMSLongMin)) + "'" + (Math.round(DMSLongSec)) + "'' E,";
+											}
+										else {
+
+										var DMSLongDeg = Math.floor(-1*(loc.lon));
+										var DMSLongMin = ((-1*(loc.lon))-DMSLongDeg)*60;
+										var DMSLongSec = (DMSLongMin - (Math.floor(DMSLongMin)))*60;
+
+											var lonDMSStr = DMSLongDeg + "°" + (Math.floor(DMSLongMin)) + "'" + (Math.round(DMSLongSec)) + "'' W,";
+											}
+
+										if (loc.lat > 0){
+
+										var DMSLatDeg = Math.floor(loc.lat);
+										var DMSLatMin = ((loc.lat)-DMSLatDeg)*60;
+										var DMSLatSec = (DMSLatMin - (Math.floor(DMSLatMin)))*60;
+
+											var latDMSStr = DMSLatDeg + "°" + (Math.floor(DMSLatMin)) + "'" + (Math.round(DMSLatSec)) + "'' N";
+										}
+										else {
+
+										var DMSLatDeg = Math.floor(-1*(loc.lat));
+										var DMSLatMin = ((-1*(loc.lat))-DMSLatDeg)*60;
+										var DMSLatSec = (DMSLatMin - (Math.floor(DMSLatMin)))*60;
+
+											var latDMSStr = DMSLatDeg + "°" + (Math.floor(DMSLatMin)) + "'" + (Math.round(DMSLatSec)) + "'' S";
+										}
+
+									//Variables for string manipulation and testing for use in popup
+									var StrOut = "Long: " + lonDMSStr + " Lat: " + latDMSStr + "<br/>" + event.text;
+
+								infoClickResults.innerHTML = StrOut;
+
+            var point = new OpenLayers.Geometry.Point(loc.lon,loc.lat);
+            var pointFeature = new OpenLayers.Feature.Vector(point,null,style_red);
+
+INFO_VECTORS.addFeatures([pointFeature]);
+////////////////////////////////////////////GeoExt Popup////////////////////////
+var popup = new GeoExt.Popup({
+    title: "Results",
+    collapsible: true,
+    x: 100,
+    y: 50,
+    height: 200,
+    width: 600,
+    autoScroll: true,
+    html: infoClickResults.innerHTML,
+    map: map,
+    anchored: false
+});
+popup.show();
+////////////////////////////////////////////////////////////////////////////////
+								//Popup with result from location click
+			                  //  map.addPopup(new OpenLayers.Popup.FramedCloud(
+			                  //      "A_Popup",
+			                  //      loc, 											//Location of Popup
+			                  //      null,							  				//Maximum Number of Results
+			                  //      StrOut, 										//Information Inside Popup
+			                  //      null,
+			                  //      true)							  				//Include Close Popup Button
+			                  //  );
+			                }
+			           	}
+			        });
+
+					//Info Click Toggle
+					function startInfoTool(){
+        					if (infoToggle == 1)
+		   										{
+		   										 infoToggle = infoToggle - 1;
+												 map.addControl(info);
+        										 info.activate();
+        										 infoToolButton.activate();
+        										 }
+							else {
+								  infoToggle = infoToggle +1;
+								  info.deactivate();
+								  map.removeControl(info);
+								  infoToolButton.deactivate();
+   								  }
+					}
+
+			//Measurement of Distance and Area
+            measureControls = {
+                line: new OpenLayers.Control.Measure(
+                  OpenLayers.Handler.Path, options
+                ),
+                polygon: new OpenLayers.Control.Measure(
+                    OpenLayers.Handler.Polygon, options
+                )
+            };
+
+            var control;
+            for (var key in measureControls)
+            {
+                control = measureControls[key];
+                control.events.on({
+                    "measure": handleMeasurements,
+                    "measurepartial": handleMeasurements
+                });
+                map.addControl(control);
+            }
+
+			//Button Declarations
+			var customButtonPanel = new OpenLayers.Control.Panel();
+
+            var measureToolButton = new OpenLayers.Control.Button(
+            {
+                title: 'Measure Tool',
+                trigger: addMesureDialog,
+                displayClass: "measureTool"
+            });
+
+	        var infoToolButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Activate Information Tool',
+			    trigger: startInfoTool,
+			    displayClass: "infoTool"
+
+            });
+
+            var searchButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Search',
+			    trigger: searchWindowOpen,
+			    displayClass: "search"
+
+            });
+
+            var helpButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Help',
+			    trigger: helpWindowOpen,
+			    displayClass: "help"
+
+            });
+
+            var zoomToCoordButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Zoom to Coordinate',
+			    trigger: setCenterWindow,
+			    displayClass: "zoomToCoord"
+            });
+
+            var graticuleSwitcherButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Graticule On / Off',
+			    trigger: switchGracticule,
+			    displayClass: "graticuleSwitcher"
+            });
+
+            var importFileButton = new OpenLayers.Control.Button(
+			            {
+			    title: 'Import Coordinates',
+			    trigger: importFileWindowOpen,
+			    displayClass: "importFile"
+            });
+
+
+
+///////////////////GeoEXT Layout///////////////////////////
+
+            //Container holding list of layers in the map
+			var layerList = new GeoExt.tree.LayerContainer({
+				text: 'All Layers',
+				layerStore: mapPanel.layers,
+				leaf: true,
+				expanded: true
+			});
+
+    		var toolbar = new Ext.Toolbar({
+        		items: [{text: "Get KML",
+            			 handler: function() {
+
+				    		var kmlWindow = new Ext.Window({
+				        		layout: "fit",
+				        		hideBorders: true,
+				        		closeAction: "hide",
+			        			width: 300,
+			        			height: 400,
+			        			title: "Get KML",
+				        		items: {contentEl: "kmlList",
+		                					collapsible: false,
+		                					autoScroll: true,
+		                					split: true}
+    							});
+
+    					kmlWindow.show();}
+
+		            }]
+    		});
+
+/////////////////////////////////Import Coordinates Window////////////////////////////////////////////////////////////
+
+			var CoordStore = new Ext.data.ArrayStore({
+    			fields: ['imp_Lat', 'imp_Long']
+				});
+
+			var CoordData = [];
+
+			CoordStore.loadData(CoordData);
+
+			var inputDataField = new Ext.form.TextArea({id: 'FilePath',
+									 			 maxLength: 10000,
+									 			 allowBlank: false,
+									 			 selectOnFocus: true,
+									 			 value:"Paste Coordinates Here.  For Required Format Click 'Help' Button."});
+
+    		var importFilePanel = new GeoExt.form.FormPanel({
+        		autoWidth: true,
+        		autoHeight: true,
+        		buttonAlign: 'center',
+        		items: [inputDataField],
+        		region:'north',
+        		layout:'fit',
+        		xtype:'formpanel'});
+
+			var colMod  = new Ext.grid.ColumnModel({
+        		defaults: {width: 200,
+            			   frame:true,
+            			   forceLayout:true,
+            			   sortable: false},
+            	columns: [{header: 'Latitude / Northing', dataIndex: 'imp_Long'},
+            			  {header: 'Longitude / Easting', dataIndex: 'imp_Lat'}]
+            			  });
+
+			var xy_Grid = new Ext.grid.GridPanel({
+    			store: CoordStore,
+	        	border:true,
+	        	stripeRows:true,
+        		buttonAlign: 'center',
+	        	height:200,
+   				colModel: colMod});
+
+			var coordinateSystemToggle = new Ext.form.ComboBox({triggerAction: 'all',
+											   readOnly: true,
+											   lazyRender: true,
+											   width:250,
+    										   mode: 'local',
+    										   lastQuery:'',
+    									       store: new Ext.data.ArrayStore({ fields: ['epsgNum','CoordSysName'],
+             																	data: [['EPSG:28348','GDA94 UTM Zone 48 CM:105°'],
+             																		   ['EPSG:28349','GDA94 UTM Zone 49 CM:111°'],
+             																		   ['EPSG:28350','GDA94 UTM Zone 50 CM:117°'],
+             																	       ['EPSG:28351','GDA94 UTM Zone 51 CM:123°'],
+             																	       ['EPSG:28352','GDA94 UTM Zone 52 CM:129°'],
+             																	       ['EPSG:28353','GDA94 UTM Zone 53 CM:135°'],
+             																	       ['EPSG:28354','GDA94 UTM Zone 54 CM:141°'],
+             																	       ['EPSG:28355','GDA94 UTM Zone 55 CM:147°'],
+             																	       ['EPSG:28356','GDA94 UTM Zone 56 CM:153°'],
+             																	       ['EPSG:28357','GDA94 UTM Zone 57 CM:159°'],
+             																	       ['EPSG:4939','GDA94 Decimal Degrees'],
+             																	       ['EPSG:4326','WGS84 Decimal Degrees']]
+    																		  }),
+    										   valueField: 'epsgNum',
+    										   value: 'Select Coordinate System',
+    										   displayField: 'CoordSysName'
+    										   });
+
+    		var importFileWindow = new Ext.Window({
+        		hideBorders: false,
+        		closeAction: "hide",
+        		bodyStyle:'padding:5px 5px 5px 5px',
+        		width: 500,
+        		height: 460,
+        		x: 200,
+        		y: 100,
+        		title: "Import Coordinates",
+        		layout: 'fit',
+        		resizable: false,
+        		collapsible: true,
+        		items:[importFilePanel,
+        			   {xtype:'fieldset',
+        			   title:"Coordinate System",
+        			   bodyStyle:'padding:0px 0px 0px 0px',
+				   		defaultType:'textField',
+        		 		items:coordinateSystemToggle},
+        		 		{xtype:'fieldset',
+        		 		title:"Loaded Data",
+						 bodyStyle:'padding:0px 0px 0px 0px',
+						 defaultType:'textField',
+        		 		 items:xy_Grid}]
+        		 		});
+
+    		importFilePanel.addButton({
+        		text: "Clear",
+        		handler: function() {
+						inputDataField.setRawValue();
+								}});
+
+    		importFilePanel.addButton({
+        		text: "Load Data",
+        		handler: function() {
+
+					CoordStore.removeAll();
+
+					var CoordData = Ext.decode("[" + inputDataField.getValue() + "]");
+
+					CoordStore.loadData(CoordData);
+					xy_Grid.reconfigure(CoordStore,colMod);
+        							},
+        		scope: xy_Grid});
+
+    		importFilePanel.addButton({
+        		text: "Help",
+        		handler: function() {
+						importHelpWindowOpen();
+				}});
+
+	xy_Grid.addButton({
+
+		text: "Clear Features",
+		handler: function() {
+			CUSTOM_VECTORS.removeFeatures(CUSTOM_VECTORS.features);
+			CUSTOM_MARKERS.clearMarkers();
+	}});
+
+    		xy_Grid.addButton({
+
+        		text: "Add as Points",
+        		handler: function() {
+
+        					coordSys = coordinateSystemToggle.getValue();
+
+								if (coordSys == 'Select Coordinate System'){
+										alert("Please Select a Coordinate System and Try Again.");}
+
+								else{
+
+									var size = new OpenLayers.Size(9,9);
+									var offset = new OpenLayers.Pixel(-(size.w/2), -(size.h/2));
+									var cust_Icon = new OpenLayers.Icon('Images/Custom_Marker.png',size,offset);
+									var src = new OpenLayers.Projection(coordSys);
+									var dest = new OpenLayers.Projection(map.getProjection());
+
+							            for (var i = 0; i < CoordStore.getCount(); i++)
+							            {
+							             var cust_Lat = xy_Grid.getView().getCell(i, 1).firstChild.innerHTML;
+							         	 var cust_Long = xy_Grid.getView().getCell(i, 0).firstChild.innerHTML;
+										 var cust_Loc = new OpenLayers.LonLat(cust_Lat,cust_Long);
+										 cust_Loc.transform(src, dest);
+										 var cust_Marker = new OpenLayers.Marker(cust_Loc,cust_Icon.clone());
+										 CUSTOM_MARKERS.addMarker(cust_Marker);
+							            }
+
+							map.zoomToExtent(CUSTOM_MARKERS.getDataExtent());
+        							}}
+        						});
+
+    		xy_Grid.addButton({
+
+        		text: "Add as Line",
+        		handler: function() {
+
+        					coordSys = coordinateSystemToggle.getValue();
+
+								if (coordSys == 'Select Coordinate System'){
+										alert("Please Select a Coordinate System and Try Again.");}
+
+								else{
+
+									var String_Coords = "LINESTRING(";
+									var Store_Count = CoordStore.getCount();
+
+							            for (var i = 0; i < CoordStore.getCount(); i++)
+							            {
+							             var cust_Lat = xy_Grid.getView().getCell(i, 1).firstChild.innerHTML;
+							         	 var cust_Long = xy_Grid.getView().getCell(i, 0).firstChild.innerHTML;
+
+							         	 if ((i+1) < Store_Count){
+										 	String_Coords = String_Coords + cust_Lat + " " + cust_Long +", ";
+										 }
+										 else {
+										 	String_Coords = String_Coords + cust_Lat + " " + cust_Long +")";
+										 }
+							            }
+
+            		var feature = new OpenLayers.Feature.Vector(OpenLayers.Geometry.fromWKT(String_Coords));
+
+					var src = new OpenLayers.Projection(coordSys);
+					var dest = new OpenLayers.Projection(map.getProjection());
+					feature.geometry.transform(src, dest);
+            		CUSTOM_VECTORS.addFeatures([feature]);
+				map.zoomToExtent(CUSTOM_VECTORS.getDataExtent());
+
+            }}});
+
+    		xy_Grid.addButton({
+
+        		text: "Add as Polygon",
+        		handler: function() {
+
+        					coordSys = coordinateSystemToggle.getValue();
+
+								if (coordSys == 'Select Coordinate System'){
+										alert("Please Select a Coordinate System and Try Again.");}
+
+								else{
+
+									var Poly_Coords = "POLYGON((";
+									var Store_Count = CoordStore.getCount();
+
+							            for (var i = 0; i < CoordStore.getCount(); i++)
+							            {
+							             var cust_Lat = xy_Grid.getView().getCell(i, 1).firstChild.innerHTML;
+							         	 var cust_Long = xy_Grid.getView().getCell(i, 0).firstChild.innerHTML;
+
+							         	 if ((i+1) < Store_Count){
+										 	Poly_Coords = Poly_Coords + cust_Lat + " " + cust_Long +", ";
+										 }
+										 else {
+										 	Poly_Coords = Poly_Coords + cust_Lat + " " + cust_Long +"))";
+										 }
+							            }
+
+
+            		var feature = new OpenLayers.Feature.Vector(OpenLayers.Geometry.fromWKT(Poly_Coords));
+
+					var src = new OpenLayers.Projection(coordSys);
+					var dest = new OpenLayers.Projection(map.getProjection());
+					feature.geometry.transform(src, dest);
+            		CUSTOM_VECTORS.addFeatures([feature]);
+				map.zoomToExtent(CUSTOM_VECTORS.getDataExtent());
+
+			}}});
+
+    		function importFileWindowOpen() {
+									   importFileWindow.show();
+		    					}
+
+
+/////////////////////////////////////////Graticule Control//////////////////////////////////////////
+
+    		var gratToggle = 1;
+    		function switchGracticule() {
+			        					if (gratToggle == 1)
+					   										{
+					   										 gratToggle = gratToggle - 1;
+															 grat.gratLayer.setVisibility(true);
+			        										 graticuleSwitcherButton.activate();
+			        										 }
+										else {
+											  gratToggle = gratToggle +1;
+											  grat.gratLayer.setVisibility(false);
+											  graticuleSwitcherButton.deactivate();
+			   								  }
+		    					}
+
+/////////////////////////JOB SEARCH////////////////////////////////////////////////////////////
+
+	var searchClient = new Ext.form.TextField({id: 'searchClient',
+							 			 allowBlank: true,
+							 			 fieldLabel: 'Client',
+							 			 value:""});
+
+	var searchProjNumber = new Ext.form.TextField({id: 'searchProjNumber',
+							 			 allowBlank: true,
+							 			 fieldLabel:'Project Number',
+							 			 value:""});
+
+	var searchJobName = new Ext.form.TextField({id: 'searchJobName',
+							 			 allowBlank: true,
+							 			 fieldLabel:'Job Name',
+							 			 value:""});
+
+	var searchSurvType = new Ext.form.TextField({id: 'searchSurvType',
+							 			 allowBlank: true,
+							 			 fieldLabel:'Survey Type',
+							 			 value:""});
+
+	var searchAcq_Data = new Ext.form.TextField({id: 'searchAcq_Data',
+							 			 allowBlank: true,
+							 			 fieldLabel:'Acquired Data',
+							 			 value:""});
+
+	var searchAll = new Ext.form.TextField({id: 'searchAll',
+							 			 allowBlank: true,
+							 			 fieldLabel:'All Fields',
+							 			 value:""});
+
+    var clearAllJobsFields = new Ext.Button({
+
+        text: "Clear Fields",
+        handler: function() {
+
+        		searchClient.reset();
+				searchProjNumber.reset();
+				searchJobName.reset();
+				searchSurvType.reset();
+				searchAcq_Data.reset();
+				searchAll.reset();
+
+     }});
+
+    var searchFieldButton = new Ext.Button({
+
+        text: "Search",
+        handler: function() {
+
+		var clientString = searchClient.getValue();
+		var projNumberString = searchProjNumber.getValue();
+		var jobNameString = searchJobName.getValue();
+		var survTypeString = searchSurvType.getValue();
+		var acqDataString = searchAcq_Data.getValue();
+
+			///////replace spaces with different characters, a +OR+ in this case, could be anything....
+			var regExp = /\s+/g;
+				clientString = clientString.replace(regExp,'%20');
+				jobNameString = jobNameString.replace(regExp,'%20');
+					//jobNameString = jobNameString.replace(regExp,'%25\'+OR+JOB_NAME+LIKE+\'%25');  //This will wildcard each search term in the textbox in any order, gives a lot of results.....
+				projNumberString = projNumberString.replace(regExp,'%20');
+				survTypeString = survTypeString.replace(regExp,'%20');
+				acqDataString = acqDataString.replace(regExp,'%20');
+
+	 				var query = "http://osdgis.fugro:8080/geoserver/wms?&service=WMS&version=1.1.0&request=GetFeatureInfo&layers=topp:WGS84_FSPTY_Jobs_Reports&query_layers=topp:WGS84_FSPTY_Jobs_Reports&CQL_FILTER=CLIENT+LIKE+'%25" + clientString + "%25'"+ "+AND+JOB_NUMBER+LIKE+'%25"+ projNumberString + "%25'+AND+JOB_NAME+LIKE+'%25"+ jobNameString + "%25'+AND+SURV_TYPE+LIKE+'%25"+ survTypeString + "%25'+AND+ACQ_DATA+LIKE+'%25"+ acqDataString +"%25'&styles=&bbox=0,-90,180,90&srs=EPSG:4326&feature_count=10000&x=1&y=1&height=1&width=1&format=image/png&info_format=text/html";
+					queryResults.innerHTML = "<iframe height=368 width=835 src=" + query + "></iframe>";
+		resultsWindow.show();
+    }});
+
+    var searchAllButton = new Ext.Button({
+
+        text: "Search All",
+        handler: function() {
+
+		var allString = searchAll.getValue();
+
+			//replace spaces
+			var regExp = /\s+/g;
+				allString = allString.replace(regExp,'%20');
+
+		 			var query_All = "http://osdgis.fugro:8080/geoserver/wms?&service=WMS&version=1.1.0&request=GetFeatureInfo&layers=topp:WGS84_FSPTY_Jobs_Reports&query_layers=topp:WGS84_FSPTY_Jobs_Reports&CQL_FILTER=CLIENT+LIKE+'%25" + allString + "%25'"+ "+OR+JOB_NUMBER+LIKE+'%25"+ allString + "%25'+OR+JOB_NAME+LIKE+'%25"+ allString + "%25'+OR+SURV_TYPE+LIKE+'%25"+ allString + "%25'+OR+ACQ_DATA+LIKE+'%25"+ allString +"%25'&styles=&bbox=0,-90,180,90&srs=EPSG:4326&feature_count=10000&x=1&y=1&height=1&width=1&format=image/png&info_format=text/html";
+					queryResults.innerHTML = "<iframe height=368 width=835 src=" + query_All + "></iframe>";
+		resultsWindow.show();
+    }});
+
+    var searchJobsPanel = new Ext.form.FormPanel({
+        autoWidth: true,
+        bodyStyle:'padding:5px 5px 5px 5px',
+        autoHeight: true,
+        buttonAlign: 'center',
+		bodyBorder: false,
+        items: [{xtype:'fieldset',
+				 title: 'Search Within Field',
+				 autoHeight:true,
+				 buttonAlign:'center',
+				 defaultType:'textField',
+        		 items:[searchProjNumber,searchJobName,searchClient,searchSurvType,searchAcq_Data],
+        		 buttons:[searchFieldButton]},
+
+				 {xtype:'fieldset',
+				 title: 'Search All Fields',
+				 autoHeight:true,
+				 buttonAlign:'center',
+				 defaultType:'textField',
+				 items:[searchAll],
+				 buttons:[searchAllButton]}],
+				 buttons: [clearAllJobsFields]
+				 });
+
+////////////////////////////////////////////////////WELL SEARCH//////////////////////////////////////
+	var searchWellName = new Ext.form.TextField({id: 'searchWellName',
+							 			 allowBlank: true,
+							 			 fieldLabel: 'Well Name',
+							 			 value:""});
+
+	var searchWellState = new Ext.form.TextField({id: 'searchWellState',
+							 			 allowBlank: true,
+							 			 fieldLabel: 'State',
+							 			 value:""});
+
+    var stateSelect = new Ext.form.ComboBox({fieldLabel: 'State',
+											   triggerAction: 'all',
+											   readOnly: true,
+											   lazyRender: true,
+    										   mode: 'local',
+    										   lastQuery:'',
+											   width: 70,
+    									       store: new Ext.data.ArrayStore({ fields: ['state','StateName'],
+																				 data: [['WA'],
+																						['VIC'],
+																						['NSW'],
+																						['QLD'],
+																						['NT'],
+																						['TAS'],
+																						['SA']]
+																				}),
+    										   valueField: 'state',
+    										   value: '',
+    										   displayField: 'state'});
+
+	var searchWellStatus = new Ext.form.TextField({id: 'searchWellStatus',
+							 			 allowBlank: true,
+							 			 fieldLabel: 'Status',
+							 			 value:""});
+
+	var searchWellOperator = new Ext.form.TextField({id: 'searchWellOperator',
+							 			 allowBlank: true,
+							 			 fieldLabel: 'Operator',
+							 			 value:""});
+
+	var searchAllWells = new Ext.form.TextField({id: 'searchAllWells',
+							 			 allowBlank: true,
+							 			 fieldLabel:'All Well Fields',
+							 			 value:""});
+
+	    var clearAllWellFields = new Ext.Button({
+
+        text: "Clear Fields",
+        handler: function() {
+
+        		searchWellName.reset();
+				searchWellState.reset();
+				searchWellStatus.reset();
+				searchWellOperator.reset();
+				searchAllWells.reset();
+
+     }});
+
+    var searchWellsFieldButton = new Ext.Button({
+
+        text: "Search",
+        handler: function() {
+
+		var wellNameString = searchWellName.getValue();
+		var wellStateString = stateSelect.getValue();
+		var wellStatusString = searchWellStatus.getValue();
+		var wellOperatorString = searchWellOperator.getValue();
+
+			///////replace spaces with different characters, a +OR+ in this case, could be anything....
+			var regExp = /\s+/g;
+				wellNameString = wellNameString.replace(regExp,'%20');
+				wellStateString = wellStateString.replace(regExp,'%20');
+				wellStatusString = wellStatusString.replace(regExp,'%20');
+				wellOperatorString = wellOperatorString.replace(regExp,'%20');
+
+	 				var query = "http://osdgis.fugro:8080/geoserver/wms?&service=WMS&version=1.1.0&request=GetFeatureInfo&layers=topp:WGS84_GeoSciAus_Wells_Offshore&query_layers=topp:WGS84_GeoSciAus_Wells_Offshore&CQL_FILTER=WELL_NAME+LIKE+'%25" + wellNameString + "%25'"+ "+AND+STATE+LIKE+'%25"+ wellStateString + "%25'+AND+WELL_STAT+LIKE+'%25"+ wellStatusString + "%25'+AND+OPERATOR+LIKE+'%25"+ wellOperatorString +"%25'&styles=&bbox=0,-90,180,90&srs=EPSG:4326&feature_count=10000&x=1&y=1&height=1&width=1&format=image/png&info_format=text/html";
+					queryResults.innerHTML = "<iframe height=368 width=835 src=" + query + "></iframe>";
+		resultsWindow.show();
+    }});
+
+    var searchAllWellsButton = new Ext.Button({
+
+        text: "Search All",
+        handler: function() {
+
+		var allString = searchAllWells.getValue();
+
+			//replace spaces
+			var regExp = /\s+/g;
+				allString = allString.replace(regExp,'%20');
+
+		 			var query_All = "http://osdgis.fugro:8080/geoserver/wms?&service=WMS&version=1.1.0&request=GetFeatureInfo&layers=topp:WGS84_GeoSciAus_Wells_Offshore&query_layers=topp:WGS84_GeoSciAus_Wells_Offshore&CQL_FILTER=WELL_NAME+LIKE+'%25" + allString + "%25'"+ "+OR+STATE+LIKE+'%25"+ allString + "%25'+OR+WELL_STAT+LIKE+'%25"+ allString + "%25'+OR+OPERATOR+LIKE+'%25"+ allString +"%25'&styles=&bbox=0,-90,180,90&srs=EPSG:4326&feature_count=10000&x=1&y=1&height=1&width=1&format=image/png&info_format=text/html";
+					queryResults.innerHTML = "<iframe height=368 width=835 src=" + query_All + "></iframe>";
+		resultsWindow.show();
+
+    }});
+
+    var searchWellsPanel = new Ext.form.FormPanel({
+        autoWidth: true,
+        bodyStyle:'padding:5px 5px 5px 5px',
+        autoHeight: true,
+        buttonAlign: 'center',
+		bodyBorder: false,
+        items: [{xtype:'fieldset',
+				 title: 'Search Well Field',
+				 autoHeight:true,
+				 buttonAlign:'center',
+				 defaultType:'textField',
+        		 items:[searchWellName, searchWellOperator, searchWellStatus, stateSelect],
+        		 buttons:[searchWellsFieldButton]},
+
+				 {xtype:'fieldset',
+				 title: 'Search All Well Fields',
+				 autoHeight:true,
+				 buttonAlign:'center',
+				 defaultType:'textField',
+				 items:[searchAllWells],
+				 buttons:[searchAllWellsButton]}],
+		buttons: [clearAllWellFields]
+				 });
+
+var searchTab = new Ext.TabPanel({
+    activeTab: 0,
+    autoHeight: true,
+    autoWidth: true,
+    items: [{title: 'Fugro Jobs',
+			 items: searchJobsPanel},
+			{title: 'Wells',
+			 items: searchWellsPanel}]
+});
+
+    var resultsWindow = new Ext.Window({
+        layout: "fit",
+        hideBorders: true,
+        closeAction: "hide",
+        width: 850,
+        height: 400,
+        onWindowResize: true,
+        maximizable: true,
+        collapsible: true,
+       	autoScroll: true,
+       	title: "Search Jobs",
+       	items:{contentEl: "queryResults",
+         	   collapsible: false,
+               split: true}
+            	//html:queryResults.innerHTML
+ 	});
+
+    		var searchWindow = new Ext.Window({
+        		layout: "fit",
+        		hideBorders: true,
+        		closeAction: "hide",
+        		width: 300,
+        		height: "auto",
+        		x: 200,
+				y: 100,
+				resizable: false,
+        		title: "Search",
+        			items: searchTab
+ 				});
+
+    		function searchWindowOpen() {
+									   searchButton.deactivate();
+									   searchWindow.show();
+		    					}
+
+/////////////////////////Help Windows////////////////////////////////////////////////////////////
+
+    		var helpWindow = new Ext.Window({
+        		layout: "fit",
+        		hideBorders: true,
+        		closeAction: "hide",
+        		width: 300,
+        		height: "auto",
+        		title: "Help",
+        			items: {contentEl: "help",
+            				collapsible: false,
+            				split: true}
+ 				});
+
+    		function helpWindowOpen() {
+									   helpButton.deactivate();
+									   helpWindow.show();
+		    					}
+
+    		var importHelpWindow = new Ext.Window({
+        		layout: "fit",
+        		hideBorders: true,
+        		closeAction: "hide",
+        		width: 300,
+        		height: "auto",
+        		title: "Import Coordinates Help",
+        			items: {contentEl: "importHelp",
+            				collapsible: false,
+            				split: true}
+ 				});
+
+    		function importHelpWindowOpen() {
+    								   importHelpWindow.show();
+		    					}
+
+//////////////////////Zoom to New Center//////////////////////////////////////////////////////////////////////////
+
+			var LongDeg = new Ext.form.TextField({id: 'LongDeg',
+									 			 maxLength: 3,
+									 			 allowBlank: false,
+									 			 value:"Deg"});
+
+			var LongMin = new Ext.form.TextField({id: 'LongMin',
+									 			 maxLength: 3,
+									 			 allowBlank: false,
+									 			 value:"Min"});
+
+			var LongSec = new Ext.form.TextField({id: 'LongSec',
+									 			 maxLength: 6,
+									 			 allowBlank: false,
+									 			 value:"Sec"});
+
+			var ewToggle = new Ext.form.ComboBox({triggerAction: 'all',
+											     readOnly: true,
+											     lazyRender: true,
+    										     mode: 'local',
+    										     lastQuery:'',
+    									         store: new Ext.data.ArrayStore({ fields: ['ewNum','eastwest'],
+             																	data: [[1,'East'],
+             																	       [2,'West']]
+    																		  }),
+    										     valueField: 'ewNum',
+    										     value: 1,
+    										     displayField: 'eastwest'});
+
+			var LatDeg = new Ext.form.TextField({id: 'LatDeg',
+									 			 maxLength: 3,
+									 			 allowBlank: false,
+									 			 value:"Deg"});
+
+			var LatMin = new Ext.form.TextField({id: 'LatMin',
+									 			 maxLength: 3,
+									 			 allowBlank: false,
+									 			 value:"Min"});
+
+			var LatSec = new Ext.form.TextField({id: 'LatSec',
+									 			 maxLength: 6,
+									 			 allowBlank: false,
+									 			 value:"Sec"});
+
+			var scaleSet = new Ext.form.TextField({id: 'scaleSet',
+												 fieldLabel: 'Scale(approx)',
+												 maxLength: 9,
+												 allowBlank: false,
+									 			 value:50000});
+
+			var nsToggle = new Ext.form.ComboBox({triggerAction: 'all',
+											   readOnly: true,
+											   lazyRender: true,
+    										   mode: 'local',
+    										   lastQuery:'',
+    									       store: new Ext.data.ArrayStore({ fields: ['hemiNum','hemisphere'],
+             																	data: [[1,'North'],
+             																	       [2,'South']]}),
+    										   valueField: 'hemiNum',
+    										   value: 2,
+    										   displayField: 'hemisphere'});
+
+			var markerToggle = new Ext.form.ComboBox({fieldLabel: 'Marker Colour',
+											   triggerAction: 'all',
+											   readOnly: true,
+											   lazyRender: true,
+    										   mode: 'local',
+    										   lastQuery:'',
+    									       store: new Ext.data.ArrayStore({ fields: ['colNum','flagColour'],
+             																	data: [['Images/Flagred16.png','Red'],
+             																	       ['Images/Flaggreen16.png','Green'],
+             																	       ['Images/Flagblue16.png','Blue'],
+             																	       ['Images/Flagorange16.png','Orange'],
+             																	       ['Images/Flagyellow16.png','Yellow'],
+             																	       ['Images/Flaggrey16.png','Grey'],
+             																	       ['Images/NoFlag.png','None']]
+    																		  }),
+    										   valueField: 'colNum',
+    										   value: 'Images/NoFlag.png',
+    										   displayField: 'flagColour'});
+
+    var goButton = new Ext.Button({
+
+        text: "Go",
+        minWidth: 70,
+        handler: function() {
+
+		//Longitude East or West
+        if (ewToggle.getValue() == 1)
+		   {
+		   var LongDD = 1.0 * LongDeg.getValue() + (LongMin.getValue()/60.0 + LongSec.getValue()/3600.0);
+		   }
+		else
+		   {
+		   var LongDD = -1.0 * LongDeg.getValue() + ((-1.0 * LongMin.getValue()/60.0) + (-1.0 * LongSec.getValue()/3600.0));
+   		}
+
+		//Latidude North or South
+        if (nsToggle.getValue() == 1)
+		   {
+			var LatDD = 1.0 * LatDeg.getValue() + (LatMin.getValue()/60.0 + LatSec.getValue()/3600.0);
+		   }
+		else
+		   {
+		   var LatDD = -1.0 * LatDeg.getValue() + ((-1.0 * LatMin.getValue()/60.0) + (-1.0 * LatSec.getValue()/3600.0));
+		   }
+
+							var size = new OpenLayers.Size(16,16);
+            				var offset = new OpenLayers.Pixel(0, 16);
+							var icon = new OpenLayers.Icon((markerToggle.getValue()), size, offset);
+							marker = new OpenLayers.Marker(new OpenLayers.LonLat(LongDD, LatDD),icon);
+							markers.addMarker(marker);
+        					map.zoomToScale(scaleSet.getValue(),true);
+							map.setCenter(new OpenLayers.LonLat(LongDD, LatDD));
+							//zoomToWindow.hide();
+        },
+        scope: setCenterPanel
+
+    });
+
+    var setCenterPanel = new GeoExt.form.FormPanel({
+        autoWidth: true,
+        bodyStyle:'padding:5px 5px 5px 5px',
+        autoHeight: true,
+        buttonAlign: 'center',
+        items: [{xtype:'fieldset',
+        		 title: 'Longitude',
+        		 autoHeight:true,
+        		 defaultType:'textField',
+        		 items:[LongDeg, LongMin, LongSec, ewToggle]},
+
+        		 {xtype:'fieldset',
+				   title: 'Latitude',
+				   autoHeight:true,
+				   defaultType:'textField',
+        		 items:[LatDeg,  LatMin, LatSec, nsToggle]},
+
+        		 {xtype:'fieldset',
+				   title: 'Options',
+				   autoHeight:true,
+				   defaultType:'textField',
+        		 items:[scaleSet, markerToggle]}],
+
+        		 buttons:[goButton]
+
+  	     });
+
+	var zoomToWindow = new Ext.Window({layout: "fit",
+									   hideBorders: true,
+									   resizable: false,
+									   closeAction: "hide",
+									   width: 350,
+									   autoHeight: true,
+									   x: 200,
+									   y: 100,
+									   title: "Zoom to Coordinate",
+									   collapsible: true,
+									   items: [setCenterPanel]});
+
+    function setCenterWindow() {
+    					zoomToCoordButton.deactivate();
+		    			zoomToWindow.show();}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//Layers and the properties to be displayed in the layer selector
+var treeLayers =
+	[{"text":"Fugro Jobs","leaf":false,"singleClickExpand":true,"children":
+		[{"text":"Previous Jobs","leaf":true,"attributes":Prev_Jobs,"icon":"Images/366_LongitudinalProfileData64.png","checked":true},
+		 {"text":"Rig Moves","leaf":true,"attributes":RIG_MOVES,"icon":"Images/Rig_Moves.png","checked":false}]},
+	{"text":"Non Fugro Data","singleClickExpand":true,"children":
+		[{"text":"Aerial Photography","leaf":true,"attributes":AIR_PHOTOS,"checked":false,"icon":"Images/Air_Photo.png"},
+		{"text":"Satellite Imagery","leaf":true,"attributes":SAT_INDEX,"checked":false,"icon":"Images/SAT.png"},
+		{"text":"LADS Data","leaf":true,"attributes":LADS_INDEX,"checked":false,"icon":"Images/LADS.png"}]},
+	{"text":"GeoScience Australia","singleClickExpand":true,"children":
+		[{"text":"Offshore Wells","leaf":true,"attributes":WELLS,"checked":false,"icon":"Images/355_FixEventRed64.png"},
+		{"text":"Offshore Permits","leaf":true,"attributes":PERMIT,"checked":false,"icon":"Images/Concession.png"}]},
+	{"text":"Infrastructure","leaf":false,"singleClickExpand":true,"children":
+		[{"text":"All","leaf":true,"checked":false,"iconCls":"layerLeafIcon","icon":"Images/AsBuilt.png"},
+		{"text":"Apache NWS","leaf":true,"attributes":APACHE,"checked":false,"iconCls":"layerLeafIcon","icon":"Images/AsBuilt.png"},
+		{"text":"Barrow Island","leaf":true,"attributes":BARROW,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Basker Manta","leaf":true,"attributes":BASKER_MANTA,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Bayu Undan","leaf":true,"attributes":BAYU_UNDAN,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Blacktip","leaf":true,"attributes":BLACKTIP,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Buffalo","leaf":true,"attributes":BUFFALO,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Casino","leaf":true,"attributes":CASINO,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Challis","leaf":true,"attributes":CHALLIS,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Chevron NWS","leaf":true,"attributes":CHEVRON_NWS,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Elang","leaf":true,"attributes":ELANG,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Esso Bass Straight","leaf":true,"attributes":ESSO_BS,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Enfield","leaf":true,"attributes":ENFIELD,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Griffin","leaf":true,"attributes":GRIFFIN,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Jabiru","leaf":true,"attributes":JABIRU,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Minerva","leaf":true,"attributes":MINERVA,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Mutineer Exeter","leaf":true,"attributes":MUTINEER,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Otway","leaf":true,"attributes":OTWAY,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Patricia Baleen","leaf":true,"attributes":PAT_BALEEN,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Pyrenes / Macedon","leaf":true,"attributes":PYR_MACEDON,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Pohokura","leaf":true,"attributes":POHOKURA,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Stybarrow","leaf":true,"attributes":STYBARROW,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Vincent","leaf":true,"attributes":VINCENT,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Wandoo","leaf":true,"attributes":WANDOO,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"WEL NWS","leaf":true,"attributes":WEL_NWS,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"West Natuna Sea","leaf":true,"attributes":W_NAT_SEA,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Woolybutt / Scalybutt","leaf":true,"attributes":WOOLY_SCALY,"checked":false,"icon":"Images/AsBuilt.png"},
+		{"text":"Greater Gorgon - Prop","leaf":true,"attributes":GORGON_PROP,"checked":false,"icon":"Images/Proposed.png"},
+		{"text":"Kupe - Prop","leaf":true,"attributes":KUPE_PROP,"checked":false,"icon":"Images/Proposed.png"},
+		{"text":"Puffin - Prop","leaf":true,"attributes":PUFFIN_PROP,"checked":false,"icon":"Images/Proposed.png"},
+		{"text":"Wheatstone - Prop","leaf":true,"attributes":WHEATSTONE_PROP,"checked":false,"icon":"Images/Proposed.png"}]},
+	{"text":"Cables","singleClickExpand":true,"children":
+		[{"text":"Subsea Cables - Australia","leaf":true,"attributes":AUS_SUBSEA_CABLES,"checked":false,"icon":"Images/Subsea_Cables.png"},
+		{"text":"Subsea Cables - World(dated)","leaf":true,"attributes":SUBSEA_CABLES,"checked":false,"icon":"Images/Subsea_Cables.png"},
+		{"text":"Subsea Cables - Fugro Confidential","leaf":true,"attributes":CONFIDENTIAL_SUBSEA_CABLES,"checked":false,"icon":"Images/Subsea_Cables.png"}]},
+	{"text":"Shipwrecks","singleClickExpand":true,"children":
+		[{"text":"Shipwrecks WA","leaf":true,"attributes":WRECKS_WA,"checked":false,"icon":"Images/Wrecks.png"}]},
+	{"text":"Cultural Data","singleClickExpand":true,"children":
+		[{"text":"Native Title","leaf":true,"attributes":NATIVE_TITLE,"checked":false,"icon":"Images/Native_Title.png"}]},
+	{"text":"Geological Data","singleClickExpand":true,"children":
+		[{"text":"Oil Fields","leaf":true,"attributes":OIL_FIELDS,"checked":false,"icon":"Images/Oil_Fields.png"},
+		{"text":"Gas Fields","leaf":true,"attributes":GAS_FIELDS,"checked":false,"icon":"Images/Gas_Fields.png"},
+		{"text":"Offshore Basins","leaf":true,"attributes":GEO_BASINS,"checked":false,"icon":"Images/Geo_Basins.png"},
+		{"text":"Onshore Basins","leaf":true,"attributes":GEO_ONSHORE_BASINS,"checked":false,"icon":"Images/Geo_Onshore_Basins.png"}]},
+	{"text":"Geographical Data","singleClickExpand":true,"children":
+		[{"text":"Towns and Cities","leaf":true,"attributes":MAJOR_TOWNS,"checked":false,"icon":"Images/Major_Towns.png"}]},
+	{"text":"Environmental Data","singleClickExpand":true,"children":
+		[{"text":"Cyclone History","leaf":true,"attributes":CYCLONE_DATA,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 2010's","leaf":true,"attributes":CYCLONE_2010,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 2000's","leaf":true,"attributes":CYCLONE_2000,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1990's","leaf":true,"attributes":CYCLONE_1990,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1980's","leaf":true,"attributes":CYCLONE_1980,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1970's","leaf":true,"attributes":CYCLONE_1970,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1960's","leaf":true,"attributes":CYCLONE_1960,"checked":false,"icon":"Images/Cyclone.png"},		
+		{"text":"Cyclones 1950's","leaf":true,"attributes":CYCLONE_1950,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1940's","leaf":true,"attributes":CYCLONE_1940,"checked":false,"icon":"Images/Cyclone.png"},		
+		{"text":"Cyclones 1930's","leaf":true,"attributes":CYCLONE_1930,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1920's","leaf":true,"attributes":CYCLONE_1920,"checked":false,"icon":"Images/Cyclone.png"},		
+		{"text":"Cyclones 1910's","leaf":true,"attributes":CYCLONE_1910,"checked":false,"icon":"Images/Cyclone.png"},
+		{"text":"Cyclones 1900's","leaf":true,"attributes":CYCLONE_1900,"checked":false,"icon":"Images/Cyclone.png"}]},
+	{"text":"Australian Maritime Boundaries","singleClickExpand":true,"children":
+		[{"text":"NAXA Military Practice Area","leaf":true,"attributes":NAXA,"checked":false,"icon":"Images/NAXA.png"},
+		{"text":"Joint Petroleum Development Area","leaf":true,"attributes":JPDA,"checked":false,"icon":"Images/JPDA.png"},
+		{"text":"Coastal Waters","leaf":true,"attributes":COASTAL_WATERS,"checked":false,"icon":"Images/Coastal_Waters.png"},
+		{"text":"Territorial Sea","leaf":true,"attributes":TERRITORIAL_SEA,"checked":false,"icon":"Images/Territorial_Sea.png"},
+		{"text":"Contiguous Zone","leaf":true,"attributes":CONTIGUOUS_ZONE,"checked":false,"icon":"Images/Contiguous_Zone.png"},
+		{"text":"Exclusive Economic Zone","leaf":true,"attributes":EEZ,"checked":false,"icon":"Images/EEZ.png"},
+		{"text":"Continental Shelf","leaf":true,"attributes":CONTINENTAL_SHELF,"checked":false,"icon":"Images/Continental_Shelf.png"}]},
+	{"text":"Marine Reserve Boundaries","singleClickExpand":true,"children":
+		[{"text":"Proposed Marine Reserves Network 2012","leaf":true,"attributes":MARINE_NETWORK,"checked":false,"icon":"Images/Marine_Net.png"},
+		{"text":"WA Marine Conservation Reserves","leaf":true,"attributes":MARINE_WA,"checked":false,"icon":"Images/WA_marine.png"}]},		
+	{"text":"Electronic Navigation Charts","singleClickExpand":true,"children":
+		[{"text":"ENC","leaf":true,"attributes":ENC,"checked":true,"icon":"Images/315_Import_ENC.png"}]},
+	{"text":"External Data - Internet","singleClickExpand":true,"children":
+		[
+			{"text":"NASA Global Mosaic - Satelite","leaf":true,"attributes":jpl_wms,"checked":false,"icon":"Images/satellite.jpg"},
+			{"text":"WetnDry Land Coverage model 2006 ","leaf":true,"attributes":WETNDRY,"checked":false,"icon":"Images/satellite.jpg"},
+			{"text":"Natural Earth Imagery 2010 ","leaf":true,"attributes":NATURALEARTH,"checked":false,"icon":"Images/satellite.jpg"}
+		]
+	}
+];
+
+			//create layer tree to select visibility of layers
+			var layerTree = new Ext.tree.TreePanel({
+				border: true,
+				region: "west",
+				title: 'Map Layers',
+				width: 250,
+				split: true,
+				collapsible: true,
+				collapsed: true,
+				iconCls:'treePanelIcon',
+				enableDD: true,
+				autoScroll: true,
+				//Bring in Layers and their properties
+				root: new Ext.tree.AsyncTreeNode({leaf:false,
+                								  loaded:false,
+                								  expanded:true,
+                								  text:'Tree Root',
+                								  children:treeLayers}),
+                //Listener for change of checkbox state
+                listeners: {checkchange: function(n)
+
+                			{if (n.text == "All")
+                				{ for (var i = 1, l = n.parentNode.childNodes.length; i < l; i++)
+
+                					{var currentNode = n.parentNode.childNodes[i];
+
+									if (currentNode.disabled == true)
+
+				            				{if   (currentNode.getUI().isChecked())
+				            				  		{currentNode.enable()}
+
+				            			 	else {currentNode.attributes.attributes.setVisibility(false);
+				            				   	  currentNode.enable()}}
+
+									else {currentNode.attributes.attributes.setVisibility(true);
+										 currentNode.disable()}
+                					}
+                				  }
+
+							 else {if (n.attributes.attributes.getVisibility(true))
+									  	{n.attributes.attributes.setVisibility(false);}
+
+							 	   else {n.attributes.attributes.setVisibility(true);}
+							 	  }
+				             }
+				           },
+				rootVisible: false,
+				lines: false,
+				useArrows: true,
+				bbar: toolbar
+			});
+
+			var viewPanel = new Ext.Viewport({
+					 layout: "fit",
+					 hideBorders: "true",
+						items:{
+						layout: "border",
+						deferredRender: false,
+						items:[mapPanel, layerTree]}
+			});
+
+////////////////////////// END OF GeoEXT Layout///////////////////////////////
+
+////////////////////Navigation and Information Controls//////////////////////
+
+            map.addControl(new OpenLayers.Control.MousePosition({element: $('location')}));
+            map.addControl(new OpenLayers.Control.Scale($('scale')));
+            map.addControl(new OpenLayers.Control.ScaleLine());
+
+			map.zoomToExtent(extent);
+            map.setCenter(new OpenLayers.LonLat(130,-25));
+            map.addControl(new OpenLayers.Control.KeyboardDefaults());
+            map.setOptions({restrictedExtent: r_extent});
+            var grat = new OpenLayers.Control.Graticule({numPoints: 2,labelled: true, visible: true, targetSize: 1000, labelFormat:'dms', visible:false});
+            map.addControl(grat);
+			//Custom Panel and Buttons
+            customButtonPanel.addControls([infoToolButton, searchButton, zoomToCoordButton, importFileButton, graticuleSwitcherButton, measureToolButton, helpButton]);
+            map.addControl(customButtonPanel);
+
+        }
+
+        function calcVincenty(geometry)
+        {
+            var dist = 0;
+            for (var i = 1; i < geometry.components.length; i++)
+            {
+                var first = geometry.components[i - 1];
+                var second = geometry.components[i];
+                dist += OpenLayers.Util.distVincenty(
+                    { lon: first.x, lat: first.y },
+                    { lon: second.x, lat: second.y }
+                );
+            }
+            return dist;
+        }
+
+        function handleMeasurements(event)
+        {
+            var geometry = event.geometry;
+            var units = event.units;
+            var order = event.order;
+            var measure = event.measure;
+            var element = document.getElementById('output');
+            var out = "";
+            if (order == 1)
+            {
+                if (map.getProjection() == "EPSG:4326")
+                {
+                    out += "Distance: " +
+                        calcVincenty(geometry).toFixed(3) + " km";
+                }
+            }
+            else
+            {
+                out += "measure: " + measure.toFixed(3) + " " + units + "<sup>2</" + "sup>";
+            }
+            element.innerHTML = out;
+        }
+
+        function toggleControl(element)
+        {
+            for (key in measureControls)
+            {
+                var control = measureControls[key];
+                if (element.value == key && element.checked)
+                {
+                    control.activate();
+                }
+                else
+                {
+                    control.deactivate();
+                }
+            }
+        }
+
+        function toggleMeasureDialog(szToggle)
+		{
+		     if (!szToggle || szToggle == "display")
+		     {
+		           szToggle = "";
+		       } else if (szToggle == "hide")
+		       {
+		           szToggle = "none";
+		           toggleControl("none");
+		       }
+		       var measureDialog = document.getElementById("measureDialog");
+		       if (measureDialog.style.display != szToggle)
+		       {
+		           measureDialog.style.display = szToggle;
+		       }
+        }
+
+            function updateLatLonEvent(event)
+            {
+                if (document.getElementById('txtHeight') != null)
+                {
+                    var mapExtent = map.getExtent();
+                    document.getElementById('txtHeight').value = map.getSize().h;
+                    document.getElementById('txtMinX').value = mapExtent.left;
+                    document.getElementById('txtMaxX').value = mapExtent.right;
+                    document.getElementById('txtMinY').value = mapExtent.bottom;
+                    document.getElementById('txtMaxY').value = mapExtent.top;
+                }
+            }
+
+        function addMesureDialog()
+		{
+		    toggleMeasureDialog('display');
+
+		    var measureOutputHtml = '<div id="output"></div>';
+		    var navigateHtml = '<input type="radio" name="type" value="none" id="noneToggle" onclick="toggleControl(this);" checked="checked" />' +
+		                        '<label for="noneToggle">navigate</label>';
+		    var distanceHtml = '<input type="radio" name="type" value="line" id="lineToggle" onclick="toggleControl(this);" />' +
+		                        '<label for="lineToggle">measure distance</label>';
+		    var areaHtml = '<input type="radio" name="type" value="polygon" id="polygonToggle" onclick="toggleControl(this);" />' +
+		                    '<label for="polygonToggle">measure area</label>';
+		    var closeLinkHtml = '<a onclick="toggleMeasureDialog(\'hide\')" href="#">Close</a>';
+
+		    var measureContentHTML = openTableHtml
+		                                + openTableRowHtml
+		                                    + openTableCellHtml + navigateHtml + closeTableCellHtml
+		                                + closeTableRowHtml
+		                                + openTableRowHtml
+		                                    + openTableCellHtml + distanceHtml + closeTableCellHtml
+		                                + closeTableRowHtml
+		                                + openTableRowHtml
+		                                    + openTableCellHtml + areaHtml + closeTableCellHtml
+		                                + closeTableRowHtml
+		                                + openTableRowHtml
+		                                    + openTableCellHtml + measureOutputHtml + closeTableCellHtml
+		                                + closeTableRowHtml
+		                             + closeTableHtml;
+
+		    var measureDialog = document.getElementById("measureDialog");
+		    measureDialog.innerHTML = measureContentHTML + closeLinkHtml;
+
+      }
+
+
+
+    </script>
+  </head>
+  <body onload="init()">
+
+    <div id="map"></div>
+	<div id="help"><p><b><u>NAVIGATION</u></b><p>
+				   <p>Zoom in to an area by holding shift and dragging a box or using your mouse wheel. To pan simply hold down the left mouse button and drag.<p><br/>
+				   <p><b><u>INFORMATION</u></b><p>
+				   <p>To get more information on a feature first click the "i" button to activate the Information Tool and click once on feature.  Click on the "i" button again to switch off the Information Tool.<p><br/>
+				   <p><b><u>SEARCH</u></b><p>
+				   <p>Add search terms to one or more fields in the "Search Within Field" box to search the Fugro Jobs Database.  More fields and search terms will narrow your results, so try more or less search terms to narrow or broaden your search.  To search any field add your search term to "Search All Fields".<p><br/>
+				   <p><b><u>ZOOM TO COORDINATE</u></b><p>
+				   <p>To Zoom to a coordinate click the button showing a purple pin in a chart, this will open the coordinate input screen where you can enter your desired location(In WGS84 DMS) and choose NSEW, a location flag can also be added if desired.<p><br/>
+				   <p><b><u>MEASURE</u></b><p>
+				   <p>Click on the measuring tape icon and choose which kind of measurement you would like from the window which opens.  Click to start a measurement, click once for a midpoint or double click to finish a measurement.<p><br/>
+				   <p><b><u>LAYER CONTROL</u></b><p>
+				   <p>Click on the slider bar on the left of the screen to open the layer menu.  If desired the arrow at the top of the slider bar can be clicked to expand the bar and set it in place.  The folders can be expanded with a single click, to enable a layer click on the checkbox to enter a tick.<p><br/>
+				   <p><b><u>DOWNLOAD KML</u></b><p>
+				   <p>KML Files for use in Google Earth and other applications are available by clicking on the Get KML Button which is located at the bottom of the layer control slider window.<p>
+				   <p>NOTE: THIS DOES NOT DOWNLOAD THE ACTUAL DATA BUT IS A LINK BACK TO THE DATABASE ON THE NETWORK.  THIS MEANS YOU WILL NOT BE ABLE TO TAKE KML's FOR USE OUTSIDE THE BALCATTA OFFICE!<p><br/>
+				   </div>
+	<div id="importHelp">
+				   <p><b><u>COORDINATES</u></b><p>
+				   <p>Coordinates must all be in Either Decimal Degrees or Meters to be imported into the system and also be in one of the supported coordinate systems.  There is currently no validity checking for coordinates so make sure whatever you enter is correct.  All coordinates are transformed into WGS84 when imported.<p><br/>
+				   <p><b><u>FORMATTING</u></b><p>
+				   <p>The format to use when importing coordinates into the system is as follows:<p><br/>
+				   <p>[North1,East1],<p>
+				   <p>[North2,East2],<p>
+				   <p>[North3,East3]<p><br/>
+				   <p>For Example:<p><br/>
+				   <p>[324974.74,7794233.53],<p>
+				   <p>[324975.74,7794274.53],<p>
+				   <p>[324976.74,7794305.53]<p><br/>
+				   <p>Note the Square brackets around coordinate pairs(Lat/Long or Easting/Northing) and the comma seperating each set of brackets and also each coordinate inside a set of brackets.<p><br/>
+				   <p><u><b>Make sure there is no comma after the last set of brackets!</b></u><p><br/>
+				   <p>A spreadsheet which will do the formatting for you can be downloaded by clicking on the link below.<p><br/>
+				   <p><a href="Worksheets\OSDGIS_Coordinate_Format.xls">Formatting Spreadsheet.</a>&nbsp;&nbsp;<p><br/>
+				   </div>
+    <div id="measureDialog"></div>
+	<div id="emptyDiv"><br/><br/></div>
+    <div id="kmlList"><p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_GeoSciAus_Wells_Offshore" target="_blank">Wells</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_FSPTY_Jobs_Reports" target="_blank">Previous Jobs</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_2009_Petroleum_Acreage" target="_blank">Concessions</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_APACHE_NWS_ASBUILT" target="_blank">Apache NWS</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_BARROW_ISLAND_ASBUILT" target="_blank">Barrow Island</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_BASKER_MANTA_ASBUILT" target="_blank">Basker Manta</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_BAYU_UNDAN_ASBUILT" target="_blank">Bayu Undan</a>&nbsp;&nbsp;<p>
+    				<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_BLACKTIP_ASBUILT" target="_blank">Blacktip</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_BUFFALO_ASBUILT" target="_blank">Buffalo</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_CASINO_ASBUILT" target="_blank">Casino</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_CHALLIS_ASBUILT_20080825" target="_blank">Challis</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_CHEVRON_NWS_ASBUILT" target="_blank">Chevron NWS</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_ELANG_ASBUILT" target="_blank">Elang</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_ESSO_OMV_BASS_STRAIGHT_ASBUILT" target="_blank">ESSO OMV Bass Straight</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_Enfield_AsBuilt" target="_blank">Enfield</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_GRIFFIN_ASBUILT_20090401" target="_blank">Griffin</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_JABIRU_ASBUILT_20090401" target="_blank">Jabiru</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_MINERVA_ASBUILT" target="_blank">Minerva</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_MUTINEER_EXETER_20060823" target="_blank">Mutineer Exeter</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_Otway_ASBUILT" target="_blank">Otway</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_PATRICIA_BALEEN_ASBUILT" target="_blank">Patricia Baleen</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_TM_POHOKURA_ASBUILT" target="_blank">Pohokura</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_Pyrennes_Macedon" target="_blank">Pyrenes / Macedon</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_STYBARROW_ASBUILT" target="_blank">Stybarrow</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_Vincent_ASBUILT_20080804" target="_blank">Vincent</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_WANDOO_ASBUILT_20071025" target="_blank">Wandoo</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_WEL_NWS_ASBUILT" target="_blank">WEL NWS</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_WEST_NATUNA_SEA_FIELD_ASBUILT" target="_blank">West Natuna Sea</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_GREATER_GORGON_PROPOSED" target="_blank">Greater Gorgon - Prop</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_KUPE_PROPOSED" target="_blank">Kupe - Prop</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_PUFFIN_PROPOSED" target="_blank">Puffin - Prop</a>&nbsp;&nbsp;<p>
+					<p><a href="http://osdgis.fugro:8080/geoserver/wms/kml?layers=topp:WGS84_WHEATSTONE_PROPOSED" target="_blank">Wheatstone - Prop</a>&nbsp;&nbsp;<p></div>
+<div id="queryResults">
+	<p><query><p></div>
+	<div id="infoClickResults">
+	<p><StrOut><p></div>
+</body>
+</html>
